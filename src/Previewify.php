@@ -2,6 +2,8 @@
 
 namespace Flowframe\Previewify;
 
+use Flowframe\Previewify\Exception\InvalidRequestException;
+
 class Previewify
 {
     public const IMAGE_ENDPOINT = 'https://previewify.app/api/image';
@@ -15,6 +17,9 @@ class Previewify
         $this->apiKey = $apiKey;
     }
 
+    /**
+     * @throws InvalidRequestException
+     */
     public function image(int $templateId, array $fields): string
     {
         $data = [
@@ -24,15 +29,24 @@ class Previewify
 
         $signature = hash_hmac('sha256', json_encode($data), $this->apiKey);
 
-        $context = stream_context_create(['http' => [
-            'header' => "Content-type: application/json\r\nAccept: application/json",
-            'method' => 'POST',
-            'content' => json_encode(compact('data', 'signature')),
-        ]]);
+        $ch = curl_init(static::IMAGE_ENDPOINT);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(compact('data', 'signature')));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ]);
 
-        $result = json_decode(file_get_contents(static::IMAGE_ENDPOINT, false, $context), false);
+        $result = json_decode(curl_exec($ch), false);
+        $status_code = @curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
 
-        return $result->url ?? '';
+        curl_close($ch);
+
+        if (200 !== $status_code) {
+            throw new InvalidRequestException($result->message ?? '', $status_code);
+        }
+
+        return $result->url;
     }
 
     public function asyncImage(int $templateId, array $fields): string

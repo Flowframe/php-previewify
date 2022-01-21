@@ -15,6 +15,7 @@
         }
     ],
     "require": {
+        "ext-curl": "*",
         "ext-json": "*",
         "php": "^7.2|^8.0"
     },
