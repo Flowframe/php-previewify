@@ -2,21 +2,20 @@
 
 namespace Flowframe\Previewify;
 
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Contracts\HttpClient\ResponseInterface;
-
 class Previewify
 {
     public const IMAGE_ENDPOINT = 'https://previewify.app/api/image';
 
     public const ASYNC_IMAGE_ENDPOINT = 'https://previewify.app/api/async-image';
 
-    public function __construct(
-        public string $apiKey,
-    ) {
+    public $apiKey;
+
+    public function __construct(string $apiKey)
+    {
+        $this->apiKey = $apiKey;
     }
 
-    public function image(int $templateId, array $fields): ResponseInterface
+    public function image(int $templateId, array $fields): string
     {
         $data = [
             'template_id' => $templateId,
@@ -25,17 +24,15 @@ class Previewify
 
         $signature = hash_hmac('sha256', json_encode($data), $this->apiKey);
 
-        $http = HttpClient::create();
+        $context = stream_context_create(['http' => [
+            'header' => "Content-type: application/json\r\nAccept: application/json",
+            'method' => 'POST',
+            'content' => json_encode(compact('data', 'signature')),
+        ]]);
 
-        return $http->request('POST', static::IMAGE_ENDPOINT, [
-            'json' => [
-                'data' => $data,
-                'signature' => $signature,
-            ],
-            'headers' => [
-                'Accept' => 'application/json',
-            ],
-        ]);
+        $result = json_decode(file_get_contents(static::IMAGE_ENDPOINT, false, $context), false);
+
+        return $result->url ?? '';
     }
 
     public function asyncImage(int $templateId, array $fields): string
@@ -52,6 +49,6 @@ class Previewify
             'signature' => $signature,
         ]);
 
-        return static::ASYNC_IMAGE_ENDPOINT . '?' . $query;
+        return static::ASYNC_IMAGE_ENDPOINT.'?'.$query;
     }
 }
